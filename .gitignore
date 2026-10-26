@@ -1,0 +1,9 @@
+node_modules/
+.npm-cache/
+.next/
+out/
+*.tsbuildinfo
+.vercel/
+.env*.local
+data/source/
+LivWell/
