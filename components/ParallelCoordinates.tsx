@@ -1,48 +1,109 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import * as d3 from "d3";
+import type { Feature, Geometry } from "geojson";
+import { metrics, type Metric, type Region } from "./metrics";
 
-type Row = { region_name: string; region_id: string; disparity_delta: number; household_wealth: number; healthcare_access: number; climate_stress: number; womens_autonomy: number };
-type Props = { data: Row[]; fields: string[]; hoveredRegion: string | null; onHover: (id: string | null) => void };
-const labels: Record<string,string> = { disparity_delta: "DISPARITY\nDELTA", household_wealth: "HOUSEHOLD\nWEALTH", healthcare_access: "HEALTHCARE\nACCESS", climate_stress: "CLIMATE\nSTRESS", womens_autonomy: "WOMEN’S\nAUTONOMY" };
+type Props = {
+  data: Feature<Geometry, Region>[];
+  activeMetric: Metric;
+  selectedCountry: string;
+  selectedYear: number;
+  hoveredRegionId: string | null;
+  setHoveredRegionId: (id: string | null) => void;
+};
+const fields = Object.keys(metrics) as Metric[];
+const baseOpacity = 0.05;
+const deltaColor = d3.scaleLinear<string>()
+  .domain([-3, 0, 3]).range(["#ef4444", "#94a3b8", "#3b82f6"]).clamp(true);
 
-export default function ParallelCoordinates({ data, fields, hoveredRegion, onHover }: Props) {
+
+function ParallelCoordinates({ data, selectedCountry, selectedYear, activeMetric, hoveredRegionId, setHoveredRegionId }: Props) {
+  const visibleRegions = useMemo(() => selectedCountry === "All" ? data :
+    data.filter(({ properties }) => properties.country_code === selectedCountry), [data, selectedCountry]);
   const ref = useRef<SVGSVGElement>(null);
+  const profiles = useRef(new Map<string, SVGPathElement>());
+  const highlighted = useRef<SVGPathElement | undefined>(undefined);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(1120);
+
   useEffect(() => {
-    if (!ref.current) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(([entry]) => setWidth(Math.max(1120, entry.contentRect.width)));
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     const svg = d3.select(ref.current);
     svg.selectAll("*").remove();
-    const width = ref.current.clientWidth || 560, height = 430;
-    const margin = { top: 34, right: 24, bottom: 48, left: 26 };
-    svg.attr("viewBox", `0 0 ${width} ${height}`).attr("preserveAspectRatio", "none");
-    const x = d3.scalePoint<string>().domain(fields).range([margin.left, width - margin.right]).padding(0.35);
-    const ranges: Record<string, [number,number]> = {};
-    fields.forEach((field) => {
-      const extent = d3.extent(data, (d) => Number(d[field as keyof Row])) as [number,number];
-      ranges[field] = field === "disparity_delta" ? [-5,5] : [Math.max(0, Math.floor(extent[0] / 10) * 10), Math.min(100, Math.ceil(extent[1] / 10) * 10)];
+    const height = 430;
+    const x = d3.scalePoint<Metric>().domain(fields).range([58, width - 58]);
+    const scales = fields.map((field) => d3.scaleLinear()
+      .domain(field === "drought_month_share_12m" ? [0, 1] : [0, 100])
+      .range([height - 72, 24]));
+    svg.attr("viewBox", `0 0 ${width} ${height}`);
+    const axes = svg.append("g").attr("pointer-events", "none");
+    fields.forEach((field, index) => {
+      const axis = axes.append("g").attr("transform", `translate(${x(field)},0)`)
+        .call(d3.axisLeft(scales[index]).ticks(5).tickSize(0).tickPadding(6));
+      axis.select(".domain").attr("stroke", "#475569");
+      axis.selectAll(".tick text").attr("fill", "#94a3b8").attr("font-size", 10);
+      const words = metrics[field].split(" ");
+      const middle = Math.ceil(words.length / 2);
+      const labelLines = [words.slice(0, middle).join(" "), words.slice(middle).join(" ")];
+      labelLines.filter(Boolean).forEach((label, line) => axis.append("text")
+        .attr("y", height - 48 + line * 14).attr("text-anchor", "middle")
+        .attr("fill", field === activeMetric ? "#67e8f9" : "#cbd5e1")
+        .attr("font-size", 11).text(label));
     });
-    const y = Object.fromEntries(fields.map((field) => [field, d3.scaleLinear().domain(ranges[field]).range([height - margin.bottom, margin.top])]));
-    const line = d3.line<[string,number]>().x(([field]) => x(field)!).y(([field,value]) => y[field](value));
-    const color = (d: Row) => Number(d.disparity_delta) < 0 ? "#d26368" : Number(d.disparity_delta) > 0 ? "#69b8e8" : "#96a2b1";
-    const group = svg.append("g");
-    group.selectAll("path.profile").data(data, (d: any) => d.region_id).join("path").attr("class","profile")
-      .attr("d", (d) => line(fields.map((field) => [field, Number(d[field as keyof Row])]))).attr("fill","none")
-      .attr("stroke", color).attr("stroke-width", 1.4).attr("stroke-opacity", 0.42)
-      .on("mouseenter", (_, d) => onHover(d.region_id)).on("mouseleave", () => onHover(null));
-    fields.forEach((field) => {
-      const axis = group.append("g").attr("transform", `translate(${x(field)},0)`).call(d3.axisLeft(y[field]).ticks(5).tickSize(0).tickPadding(8).tickFormat(d3.format("~g")));
-      axis.select(".domain").attr("stroke", "#344254"); axis.selectAll(".tick text").attr("fill", "#8794a5").attr("font-size", 10); axis.selectAll(".tick line").remove();
-      (labels[field] || field.toUpperCase()).split("\n").forEach((part,index) => axis.append("text").attr("x",0).attr("y",height-margin.bottom+24+index*13).attr("text-anchor","middle").attr("fill","#aab5c3").attr("font-size",9).attr("letter-spacing",".08em").text(part));
+    const line = d3.line<number>()
+      .defined(Number.isFinite)
+      .x((_, index) => x(fields[index])!)
+      .y((value, index) => scales[index](value));
+    const paths = svg.append("g").selectAll<SVGPathElement, Feature<Geometry, Region>>("path")
+      .data(visibleRegions, (feature) => feature.properties.region_id).join("path")
+      .attr("class", "profile").attr("fill", "none")
+      .attr("d", (feature) => line(fields.map((field) => feature.properties[field] ?? NaN)))
+      .attr("stroke", ({ properties }) => deltaColor(properties[`${activeMetric}_delta`] ?? 0))
+      .attr("stroke-opacity", baseOpacity).attr("stroke-width", 1.5)
+      .attr("tabindex", 0).attr("aria-label", (feature) => feature.properties.region_name)
+      .on("mouseover focus", (_, feature) => setHoveredRegionId(feature.properties.region_id))
+      .on("mouseout blur", () => setHoveredRegionId(null));
+    paths.each(function (feature) {
+      profiles.current.set(feature.properties.region_id, this);
     });
-    return () => { svg.selectAll("*").remove(); };
-  }, [data, fields, onHover]);
+    paths.append("title").text((feature) => feature.properties.region_name);
+    const profileNodes = profiles.current;
+    return () => {
+      svg.selectAll("*").remove();
+      profileNodes.clear();
+      highlighted.current = undefined;
+    };
+  }, [visibleRegions, width, activeMetric, setHoveredRegionId]);
 
   useEffect(() => {
-    if (!ref.current) return;
-    d3.select(ref.current).selectAll<SVGPathElement, Row>("path.profile")
-      .attr("stroke-opacity", (d) => hoveredRegion ? (d.region_id === hoveredRegion ? 1 : 0.08) : 0.42)
-      .attr("stroke-width", (d) => d.region_id === hoveredRegion ? 3.2 : 1.4);
-  }, [hoveredRegion]);
-  return <svg ref={ref} className="parallel-chart" role="img" aria-label="Parallel coordinates comparing five development indicators for each region" />;
+    if (highlighted.current) {
+      d3.select<SVGPathElement, Feature<Geometry, Region>>(highlighted.current)
+        .attr("stroke", ({ properties }) => deltaColor(properties[`${activeMetric}_delta`] ?? 0))
+        .attr("stroke-opacity", baseOpacity)
+        .attr("stroke-width", 1.5);
+    }
+    const next = hoveredRegionId === null ? undefined : profiles.current.get(hoveredRegionId);
+    if (next) {
+      d3.select(next).attr("stroke", "#22d3ee").attr("stroke-opacity", 1)
+        .attr("stroke-width", 4).raise();
+    }
+    highlighted.current = next;
+  }, [hoveredRegionId, visibleRegions, width, activeMetric]);
+
+  return <div ref={containerRef} className="overflow-x-auto bg-slate-950/20">
+    <svg ref={ref} style={{ width, minWidth: "100%" }} className="parallel-chart" role="group"
+      aria-label={`Regional indicator profiles for ${selectedYear}, across ten indicators. Active metric: ${metrics[activeMetric]}`} />
+    {visibleRegions.length === 0 && <p className="px-5 pb-3 text-sm text-slate-400">No regions match this year and country.</p>}
+  </div>;
 }
+
+export default memo(ParallelCoordinates);
