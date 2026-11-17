@@ -5,6 +5,7 @@ import DeckGL from "@deck.gl/react";
 import { FlyToInterpolator, WebMercatorViewport, type MapViewState } from "@deck.gl/core";
 import { GeoJsonLayer } from "@deck.gl/layers";
 import type { Filters, LivWell, MetricKey, RegionFeature, RegionProperties } from "./data";
+import { passesFilters } from "./data";
 import { legendGradient, zColor } from "./colors";
 
 type Props = {
@@ -40,10 +41,7 @@ export default function Map({ data, year, country, metric, hoveredRegionId, setH
       if (properties.country_code !== country) return [100, 116, 139, 35];
       const record = data.recordFor(properties.region_id, year);
       const z = record?.z[metric];
-      const visible = Object.entries(filters).every(([key, range]) => {
-        const score = record?.z[key as MetricKey];
-        return score != null && score >= range[0] && score <= range[1];
-      });
+      const visible = passesFilters(record, filters);
       const rgb = z == null ? [55, 65, 81] : zColor(z);
       return [rgb[0], rgb[1], rgb[2], visible ? (z == null ? 85 : 230) : 35];
     },

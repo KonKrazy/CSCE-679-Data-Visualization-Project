@@ -12,6 +12,13 @@ export type Country = { code: string; name: string; surveyYears: number[]; bbox:
 export type Values = Partial<Record<MetricKey, number | null>>;
 export type RegionRecord = { id: string; y: number; m: boolean; v: Values; z: Values };
 export type Filters = Partial<Record<MetricKey, [number, number]>>;
+// Missing observations cannot satisfy an active range.
+export function passesFilters(record: RegionRecord | undefined, filters: Filters): boolean {
+  return (Object.entries(filters) as [MetricKey, [number, number]][]).every(([key, [low, high]]) => {
+    const z = record?.z[key];
+    return z != null && Number.isFinite(z) && z >= low && z <= high;
+  });
+}
 type Payload = { years: number[]; indicators: Indicator[]; countries: Country[]; baselines: Record<string, Record<string, Values>>; records: RegionRecord[] };
 
 function indexData(regions: RegionFeature[], payload: Payload) {

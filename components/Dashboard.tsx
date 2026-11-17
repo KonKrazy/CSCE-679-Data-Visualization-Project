@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Map from "./Map";
 import ParallelCoordinates from "./ParallelCoordinates";
 import { useLivWell, type Filters, type MetricKey } from "./data";
@@ -11,18 +11,14 @@ export default function Dashboard() {
   const [metric, setMetric] = useState<MetricKey>("household_wealth");
   const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
-  const [filters] = useState<Filters>({});
+  const [filters, setFilters] = useState<Filters>({});
   const { data, loading, error } = useLivWell();
   useEffect(() => {
     const clear = (event: KeyboardEvent) => { if (event.key === "Escape") setSelectedRegionId(null); };
     window.addEventListener("keydown", clear);
     return () => window.removeEventListener("keydown", clear);
   }, []);
-  const profiles = useMemo(() => data?.regionsFor(country).map(region => {
-    const record = data.recordFor(region.properties.region_id, year);
-    return { ...region, properties: { ...region.properties, year, ...record?.v } };
-  }) ?? [], [data, country, year]);
-  const changeCountry = (code: string) => { setCountry(code); setHoveredRegionId(null); setSelectedRegionId(null); };
+  const changeCountry = (code: string) => { setCountry(code); setFilters({}); setHoveredRegionId(null); setSelectedRegionId(null); };
   const firstYear = data?.years[0] ?? 1990;
   const lastYear = data?.years[data.years.length - 1] ?? 2019;
   return <div className="mx-auto flex min-h-dvh max-w-[1600px] flex-col gap-5 px-4 pt-6 sm:px-8">
@@ -40,14 +36,14 @@ export default function Dashboard() {
     </header>
     {loading && <p role="status">Loading LivWell…</p>}
     {error && <p role="alert" className="text-rose-300">{error}</p>}
-    {data && <section className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+    {data && <section className="grid gap-4 lg:grid-cols-1">
       <article className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
         <h2 className="p-4 font-semibold">{data.indicatorFor(metric)?.label} · z-score</h2>
         <Map {...{ data, year, country, metric, hoveredRegionId, setHoveredRegionId, selectedRegionId, setSelectedRegionId, filters }} onCountryChange={changeCountry} />
       </article>
       <article className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
         <h2 className="p-4 font-semibold">Regional indicator profiles</h2>
-        <ParallelCoordinates data={profiles} selectedYear={year} selectedCountry={country} activeMetric={metric} {...{ hoveredRegionId, setHoveredRegionId }} />
+        <ParallelCoordinates {...{ data, year, country, metric, setMetric, hoveredRegionId, setHoveredRegionId, selectedRegionId, setSelectedRegionId, filters, setFilters }} />
       </article>
     </section>}
     <div className="sticky bottom-0 z-10 mt-auto rounded-t-lg border border-slate-800 bg-slate-900 p-4">
