@@ -61,3 +61,18 @@ Check whether the tool supports the three design tasks from the proposal:
 
 Run `uv run python evaluation/analyze_results.py` after filling in the CSVs to produce
 per-task accuracy, median time, mean SEQ and the mean SUS score.
+
+## Performance evaluation (R3, sub-300 ms target)
+
+`measure_latency.mjs` times 30 trials each of year, metric and country changes and a
+linked hover, from the input event to the second animation frame (React commit + paint).
+
+```bash
+npm run build && npm run start
+CHROME="/path/to/chrome" CHROME_ARGS="--use-angle=metal --ignore-gpu-blocklist" npm run measure
+```
+
+Results are written to `results/latency.json` (includes CPU, Chrome version and flags).
+Use hardware-accelerated WebGL: without GPU flags, headless Chrome falls back to software
+rendering (SwiftShader), which made map updates ~1.4 s on the same machine. Profiling showed
+only ~50 ms of that was JavaScript; the rest was software rasterization of the map.

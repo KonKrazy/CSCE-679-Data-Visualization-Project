@@ -1,0 +1,41 @@
+{
+  "url": "http://localhost:3100",
+  "trials": 30,
+  "cpu": "Apple M5",
+  "chromeArgs": [
+    "--use-angle=metal",
+    "--ignore-gpu-blocklist",
+    "--enable-gpu-rasterization"
+  ],
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.8103.78 Safari/537.36",
+  "loadMs": {
+    "domContentLoaded": 100.29999999701977,
+    "dataLoaded": 212.5
+  },
+  "interactions": {
+    "year": {
+      "median": 56.599999994039536,
+      "p95": 62.20000000298023,
+      "max": 85.79999999701977,
+      "under300": 1
+    },
+    "metric": {
+      "median": 56.5,
+      "p95": 58.900000005960464,
+      "max": 63.599999994039536,
+      "under300": 1
+    },
+    "hover": {
+      "median": 33.3999999910593,
+      "p95": 33.5,
+      "max": 33.6000000089407,
+      "under300": 1
+    },
+    "country": {
+      "median": 78.70000000298023,
+      "p95": 85,
+      "max": 97.5,
+      "under300": 1
+    }
+  }
+}
