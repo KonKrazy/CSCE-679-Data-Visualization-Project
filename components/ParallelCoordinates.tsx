@@ -70,7 +70,7 @@ export default function ParallelCoordinates({ data, country, year, metric, setMe
   }, []);
   useEffect(() => { setTooltip(null); }, [country, year, filters]);
   const axes = useMemo(() => [metric, ...fields.filter(field => field !== metric)], [metric]);
-  const x = d3.scalePoint<MetricKey>().domain(axes).range([55, width - 95]);
+  const x = d3.scalePoint<MetricKey>().domain(axes).range([55, width - 130]);
   const regions = data.regionsFor(country).map(region => ({ region, record: data.recordFor(region.properties.region_id, year) }));
   const focus = hoveredRegionId ?? selectedRegionId;
   const ordered = [...regions].sort((a, b) => Number(a.region.properties.region_id === focus) - Number(b.region.properties.region_id === focus));
@@ -80,9 +80,9 @@ export default function ParallelCoordinates({ data, country, year, metric, setMe
     <div className="relative overflow-x-auto bg-slate-950/20" onMouseLeave={() => { setHoveredRegionId(null); setTooltip(null); }}>
       <svg width={width} height={height} className="block" role="group" aria-label={`Regional z-score profiles for ${country}, ${year}`}>
         {[-2, -1, 0, 1, 2].map(tick => <g key={tick}>
-          <line x1={55} x2={width - 95} y1={y(tick)} y2={y(tick)} stroke="currentColor" className={tick === 0 ? "text-slate-400" : "text-slate-700"} strokeDasharray={tick === 0 ? "5 4" : undefined} />
+          <line x1={55} x2={width - 130} y1={y(tick)} y2={y(tick)} stroke="currentColor" className={tick === 0 ? "text-slate-400" : "text-slate-700"} strokeDasharray={tick === 0 ? "5 4" : undefined} />
         </g>)}
-        <text x={55} y={y(0) - 7} fill="currentColor" className="text-slate-300" fontSize={10}>National baseline</text>
+        <text x={width - 120} y={y(0) + 4} fill="currentColor" className="text-slate-300" fontSize={10}>National baseline</text>
         {axes.map((field, index) => {
           const available = regions.some(({ record }) => record?.z[field] != null);
           return <g key={field} opacity={available ? 1 : 0.35}>
@@ -99,8 +99,8 @@ export default function ParallelCoordinates({ data, country, year, metric, setMe
         {ordered.map(({ region, record }) => {
           const id = region.properties.region_id;
           const passes = passesFilters(record, filters);
-          const highlighted = passes && id === focus;
-          const color = passes ? `rgb(${zColor(record?.z[metric] ?? 0).join(",")})` : "#94a3b8";
+          const highlighted = id === hoveredRegionId || id === selectedRegionId;
+          const color = id === hoveredRegionId ? "#facc15" : id === selectedRegionId ? "#ffffff" : passes ? `rgb(${zColor(record?.z[metric] ?? 0).join(",")})` : "#94a3b8";
           const points = axes.map(field => ({ field, z: record?.z[field] }));
           const line = d3.line<(typeof points)[number]>().defined(point => point.z != null).x(point => x(point.field)!).y(point => y(point.z!));
           const end = points.filter(point => point.z != null).at(-1);
@@ -108,13 +108,13 @@ export default function ParallelCoordinates({ data, country, year, metric, setMe
             const bounds = event.currentTarget.ownerSVGElement!.getBoundingClientRect();
             setHoveredRegionId(id); setTooltip({ id, field, x: event.clientX - bounds.left, y: event.clientY - bounds.top });
           };
-          return <g key={id} opacity={!passes ? 0.06 : highlighted ? 1 : focus ? 0.12 : 0.5} pointerEvents={passes ? "auto" : "none"}
+          return <g key={id} opacity={highlighted ? 1 : !passes ? 0.06 : focus ? 0.12 : 0.5} pointerEvents={passes ? "auto" : "none"}
             onMouseLeave={() => { setHoveredRegionId(null); setTooltip(null); }} onClick={() => setSelectedRegionId(id === selectedRegionId ? null : id)}>
             <path d={line(points) ?? undefined} fill="none" stroke={color} strokeWidth={highlighted ? 3 : 1.5}
               onMouseMove={event => { const localX = event.clientX - event.currentTarget.ownerSVGElement!.getBoundingClientRect().left; const nearest = points.filter(point => point.z != null).sort((a, b) => Math.abs(x(a.field)! - localX) - Math.abs(x(b.field)! - localX))[0]; if (nearest) showTooltip(event, nearest.field); }} />
             {points.filter(point => point.z != null).map(point => <g key={point.field} onMouseMove={event => showTooltip(event, point.field)}>
-              <circle cx={x(point.field)} cy={y(point.z!)} r={highlighted ? 4.5 : 3.5} fill={color} stroke="#0f172a" strokeWidth={1} />
-              {Math.abs(point.z!) > 3 && <path d={point.z! > 3 ? "M-4,3 L0,-4 L4,3 Z" : "M-4,-3 L0,4 L4,-3 Z"} transform={`translate(${x(point.field)},${y(point.z!)})`} fill={color} stroke="#0f172a" strokeWidth={1} />}
+              <circle cx={x(point.field)} cy={y(point.z!)} r={highlighted ? 4.5 : 3.5} fill={color} stroke={highlighted ? color : "#0f172a"} strokeWidth={highlighted ? 3 : 1} />
+              {Math.abs(point.z!) > 3 && <path d={point.z! > 3 ? "M-4,3 L0,-4 L4,3 Z" : "M-4,-3 L0,4 L4,-3 Z"} transform={`translate(${x(point.field)},${y(point.z!)})`} fill={color} stroke={highlighted ? color : "#0f172a"} strokeWidth={highlighted ? 3 : 1} />}
             </g>)}
             {highlighted && end && <text x={x(end.field)! + 7} y={y(end.z!) - 8} fontSize={11} fill={color} textAnchor="end" pointerEvents="none">{region.properties.region_name}</text>}
           </g>;

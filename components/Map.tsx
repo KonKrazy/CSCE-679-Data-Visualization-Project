@@ -42,10 +42,10 @@ export default function Map({ data, year, country, metric, hoveredRegionId, setH
       const record = data.recordFor(properties.region_id, year);
       const z = record?.z[metric];
       const visible = passesFilters(record, filters);
-      const rgb = z == null ? [55, 65, 81] : zColor(z);
-      return [rgb[0], rgb[1], rgb[2], visible ? (z == null ? 85 : 230) : 35];
+      const rgb = z == null ? [30, 41, 59] : zColor(z);
+      return [rgb[0], rgb[1], rgb[2], visible ? (z == null ? 255 : 230) : 35];
     },
-    getLineColor: ({ properties }) => properties.region_id === selectedRegionId ? [255, 255, 255, 255] : properties.region_id === hoveredRegionId ? [250, 204, 21, 255] : [148, 163, 184, properties.country_code === country ? 130 : 45],
+    getLineColor: ({ properties }) => properties.region_id === selectedRegionId ? [255, 255, 255, 255] : properties.region_id === hoveredRegionId ? [250, 204, 21, 255] : [148, 163, 184, properties.country_code === country ? (data.recordFor(properties.region_id, year)?.z[metric] == null ? 230 : 130) : 45],
     getLineWidth: ({ properties }) => properties.region_id === selectedRegionId ? 3.5 : properties.region_id === hoveredRegionId ? 2.5 : properties.country_code === country ? 0.8 : 0.4,
     onHover: ({ object, x, y }) => {
       setHoveredRegionId(object?.properties.region_id ?? null);
@@ -56,7 +56,7 @@ export default function Map({ data, year, country, metric, hoveredRegionId, setH
       if (object.properties.country_code !== country) onCountryChange(object.properties.country_code);
       else setSelectedRegionId(object.properties.region_id === selectedRegionId ? null : object.properties.region_id);
     },
-    updateTriggers: { getFillColor: [country, year, metric, filters], getLineColor: [country, hoveredRegionId, selectedRegionId], getLineWidth: [country, hoveredRegionId, selectedRegionId] },
+    updateTriggers: { getFillColor: [country, year, metric, filters], getLineColor: [country, year, metric, hoveredRegionId, selectedRegionId], getLineWidth: [country, hoveredRegionId, selectedRegionId] },
   })];
   const properties = hover?.region.properties;
   const record = properties ? data.recordFor(properties.region_id, year) : undefined;
@@ -79,7 +79,8 @@ export default function Map({ data, year, country, metric, hoveredRegionId, setH
       <div className="h-3 rounded" style={{ background: legendGradient }} />
       <div className="relative mt-1 h-4">{[-2, -1, 0, 1, 2].map(tick => <span key={tick} className="absolute -translate-x-1/2" style={{ left: `${(tick + 2.5) / 5 * 100}%` }}>{tick < 0 ? `−${Math.abs(tick)}` : tick}</span>)}</div>
       <div className="mt-1 flex justify-between gap-4"><span>Behind national baseline</span><span>Ahead</span></div>
-      <p className="mt-2 text-slate-400">Gray: |z| &lt; 0.25 · Dark gray: unavailable · Click a region to pin; Esc to clear</p>
+      <div className="mt-2 flex items-center gap-2"><span className="inline-block h-3 w-5 rounded border border-slate-400 bg-slate-800" />No data</div>
+      <p className="mt-2 text-slate-400">Neutral slate: |z| &lt; 0.25 · Click a region to pin; Esc to clear</p>
     </div>
   </>;
 }
