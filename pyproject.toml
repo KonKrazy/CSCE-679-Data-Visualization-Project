@@ -1,0 +1,14 @@
+[project]
+name = "livwell-data"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["geopandas", "pandas", "pyogrio", "shapely"]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
