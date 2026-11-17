@@ -26,18 +26,27 @@ export default function RegionDetail({ data, country, year, metric, selectedRegi
     {points.length ? <svg viewBox="0 0 400 170" className="mt-2 w-full" role="img" aria-label={`${region.properties.region_name} trajectory; solid dots mark surveys, dashed segments mark interpolation`}>
       <line x1={35} x2={35} y1={30} y2={140} stroke="#64748b" />
       {[-2, -1, 0, 1, 2].map(tick => <g key={tick}><line x1={31} x2={35} y1={y(tick)} y2={y(tick)} stroke="#94a3b8" /><text x={27} y={y(tick) + 3} textAnchor="end" fill="#94a3b8" fontSize={10}>{tick < 0 ? `−${Math.abs(tick)}` : tick}</text></g>)}
-      <line x1={35} x2={365} y1={y(0)} y2={y(0)} stroke="#64748b" />
-      <text x={35} y={y(0) - 5} fill="#94a3b8" fontSize={9}>National baseline · 0</text>
+      <line x1={35} x2={365} y1={y(0)} y2={y(0)} stroke="#94a3b8" strokeDasharray="2 3" />
       {points.slice(1).map((point, index) => {
         const previous = points[index];
         return point.year === previous.year + 1 ? <line key={point.year} x1={x(previous.year)} x2={x(point.year)} y1={y(previous.z)} y2={y(point.z)} stroke="#38bdf8" strokeWidth={2} strokeDasharray={!previous.measured || !point.measured ? "4 3" : undefined} /> : null;
       })}
-      {points.filter(point => point.measured).map(point => <circle key={point.year} cx={x(point.year)} cy={y(point.z)} r={3.5} fill={`rgb(${zColor(point.z).join(",")})`}><title>{point.year}: {point.z.toFixed(2)} · Survey year</title></circle>)}
+      {points.filter(point => point.measured).map(point => {
+        const fill = `rgb(${zColor(point.z).join(",")})`;
+        const title = <title>{point.year}: {point.z.toFixed(2)} · Survey year</title>;
+        if (Math.abs(point.z) <= 3) return <circle key={point.year} cx={x(point.year)} cy={y(point.z)} r={3.5} fill={fill}>{title}</circle>;
+        // Off-scale survey values: an arrow at the edge plus the true value, so the clamp is not misread.
+        const below = point.z < 0;
+        return <g key={point.year} transform={`translate(${x(point.year)},${y(point.z)})`}>
+          <path d={below ? "M-5,-4 L5,-4 L0,4 Z" : "M-5,4 L5,4 L0,-4 Z"} fill={fill}>{title}</path>
+          <text x={7} y={below ? -6 : 12} fill="#e2e8f0" fontSize={9}>{point.z.toFixed(1)}</text>
+        </g>;
+      })}
       {year >= first && year <= last && <line x1={x(year)} x2={x(year)} y1={20} y2={145} stroke="#facc15" strokeDasharray="3 3" />}
       <line x1={35} x2={365} y1={140} y2={140} stroke="#64748b" />
       {surveys.map(survey => <g key={survey}><line x1={x(survey)} x2={x(survey)} y1={140} y2={145} stroke="#94a3b8" /><text x={x(survey)} y={160} textAnchor="middle" fill="#94a3b8" fontSize={10}>{survey}</text></g>)}
     </svg> : <p className="py-5 text-sm text-slate-400">No trajectory data for this indicator</p>}
-    <p className="mb-2 text-xs text-slate-400">Dots: surveys · Dashes: interpolation · Yellow: current year {year}</p>
+    <p className="mb-2 text-xs text-slate-400">Dotted gray line: national baseline (z = 0) · Dots: surveys · Dashes: interpolation · Arrows: beyond ±3 · Yellow: current year {year}</p>
     <div className="overflow-x-auto"><table className="w-full text-left text-xs"><caption className="sr-only">Regional indicators and national baselines for {year}</caption>
       <thead className="text-slate-400"><tr><th className="py-2">Indicator</th><th>Value</th><th>Baseline</th><th>z</th></tr></thead>
       <tbody>{data.indicators.map(indicator => {
