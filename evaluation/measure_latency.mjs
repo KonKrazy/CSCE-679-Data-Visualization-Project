@@ -4,7 +4,7 @@
 //   CHROME="/path/to/chrome" npm run measure  # in another (any Chrome/Chromium binary)
 //
 // Each trial runs inside the page: it changes a control the way a user would (native
-// value setter + input/change event, or a mouseover on a chart line), then waits two
+// value setter + input/change event, or a mousemove on a chart line), then waits two
 // animation frames so React has committed and the browser has painted. Results are
 // written to evaluation/results/latency.json and summarised on stdout.
 import { writeFileSync } from "node:fs";
@@ -42,11 +42,17 @@ const measure = (kind) => page.evaluate(async ({ kind, trials }) => {
     if (kind === "metric") setValue(metricSelect, metricSelect.options[i % metricSelect.options.length].value);
     if (kind === "country") setValue(countrySelect, countrySelect.options[(i * 7) % countrySelect.options.length].value);
     if (kind === "hover") {
-      const lines = [...document.querySelectorAll("svg path")].filter((path) => path.getAttribute("fill") === "none");
-      lines[i % lines.length].dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      const lines = [...document.querySelectorAll('svg[aria-label^="Regional z-score profiles"] path[fill="none"]')];
+      if (!lines.length) throw new Error("Hover trial: no parallel-coordinates lines found.");
+      const line = lines[i % lines.length];
+      const bounds = line.getBoundingClientRect();
+      line.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 }));
     }
     await frame();
     samples.push(performance.now() - start);
+    if (kind === "hover" && i === 0 && !document.querySelector('svg[aria-label^="Regional z-score profiles"] path[fill="none"][stroke="#facc15"]')) {
+      throw new Error("Hover trial: first mousemove did not highlight a parallel-coordinates line (#facc15).");
+    }
   }
   if (kind === "country") setValue(countrySelect, "KHM");
   return samples;

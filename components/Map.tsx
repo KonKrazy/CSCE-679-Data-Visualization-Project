@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import DeckGL from "@deck.gl/react";
 import { FlyToInterpolator, WebMercatorViewport, type MapViewState } from "@deck.gl/core";
 import { GeoJsonLayer } from "@deck.gl/layers";
 import type { Filters, LivWell, MetricKey, RegionFeature, RegionProperties } from "./data";
-import { passesFilters } from "./data";
+import { formatValue, passesFilters } from "./data";
 import { legendGradient, zColor } from "./colors";
 
 type Props = {
@@ -14,28 +14,35 @@ type Props = {
   selectedRegionId: string | null; setSelectedRegionId: (id: string | null) => void;
   filters: Filters; onCountryChange: (country: string) => void;
 };
-const format = (value: number | null | undefined, unit: string) => value == null ? "No data" : `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}${unit === "%" ? "%" : ` ${unit}`}`;
 
-export default function Map({ data, year, country, metric, hoveredRegionId, setHoveredRegionId, selectedRegionId, setSelectedRegionId, filters, onCountryChange }: Props) {
+function Map({ data, year, country, metric, hoveredRegionId, setHoveredRegionId, selectedRegionId, setSelectedRegionId, filters, onCountryChange }: Props) {
   const container = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ width: 600, height: 430 });
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const sizeRef = useRef(size);
+  const fittedCountry = useRef<string | null>(null);
+  const hasSize = size.width > 0 && size.height > 0;
+  const geometry = useMemo(() => ({ type: "FeatureCollection" as const, features: data.regions }), [data.regions]);
   const [viewState, setViewState] = useState<MapViewState>({ longitude: 0, latitude: 10, zoom: 0.8 });
   const [hover, setHover] = useState<{ region: RegionFeature; x: number; y: number } | null>(null);
   useEffect(() => {
     if (!container.current) return;
-    const observer = new ResizeObserver(([entry]) => setSize({ width: entry.contentRect.width, height: entry.contentRect.height }));
+    const observer = new ResizeObserver(([entry]) => {
+      sizeRef.current = { width: entry.contentRect.width, height: entry.contentRect.height };
+      setSize(sizeRef.current);
+    });
     observer.observe(container.current);
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
     const bbox = data.countryFor(country)?.bbox;
-    if (!bbox || !size.width || !size.height) return;
-    const fitted = new WebMercatorViewport(size).fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 40 });
+    if (!bbox || !hasSize || fittedCountry.current === country) return;
+    const fitted = new WebMercatorViewport(sizeRef.current).fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 40 });
     setViewState({ longitude: fitted.longitude, latitude: fitted.latitude, zoom: fitted.zoom, transitionDuration: 900, transitionInterpolator: new FlyToInterpolator() });
+    fittedCountry.current = country;
     setHover(null);
-  }, [country, data, size]);
+  }, [country, data, hasSize]);
   const layers = [new GeoJsonLayer<RegionProperties>({
-    id: "regions", data: { type: "FeatureCollection", features: data.regions }, pickable: true,
+    id: "regions", data: geometry, pickable: true,
     lineWidthUnits: "pixels",
     getFillColor: ({ properties }) => {
       if (properties.country_code !== country) return [100, 116, 139, 35];
@@ -69,8 +76,8 @@ export default function Map({ data, year, country, metric, hoveredRegionId, setH
       {hover && properties && <div role="tooltip" className="pointer-events-none absolute z-20 w-64 rounded-md border border-slate-600 bg-slate-900/95 p-3 text-xs text-slate-200 shadow-xl"
         style={{ left: Math.max(8, Math.min(hover.x + 14, size.width - 264)), top: Math.max(8, Math.min(hover.y + 14, size.height - 185)) }}>
         <p className="font-semibold text-white">{properties.region_name}</p><p className="mb-2 text-slate-400">{properties.country_name} · {year}</p>
-        <p>{indicator?.label}: {format(record?.v[metric], indicator?.unit ?? "")}</p>
-        <p>National baseline (regional mean): {format(baseline, indicator?.unit ?? "")}</p>
+        <p>{indicator?.label}: {formatValue(record?.v[metric], indicator?.unit ?? "")}</p>
+        <p>National baseline (regional mean): {formatValue(baseline, indicator?.unit ?? "")}</p>
         <p>z: {z == null ? "No data" : `${z >= 0 ? "+" : ""}${z.toFixed(2)}`}</p>
         {record ? <span className={`mt-2 inline-block rounded px-2 py-1 ${record.m ? "bg-sky-900 text-sky-200" : "bg-slate-700 text-slate-200"}`}>{record.m ? "Survey year" : "Interpolated"}</span> : <p className="mt-2 text-slate-400">No observation for this year</p>}
       </div>}
@@ -84,3 +91,5 @@ export default function Map({ data, year, country, metric, hoveredRegionId, setH
     </div>
   </>;
 }
+
+export default React.memo(Map);

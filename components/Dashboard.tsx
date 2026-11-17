@@ -41,7 +41,8 @@ export default function Dashboard() {
     return () => observer.disconnect();
   }, [data, country]);
   useEffect(() => {
-    if (!playing || rangeStart == null || rangeEnd == null) return;
+    if (rangeStart == null || rangeEnd == null) { setPlaying(false); return; }
+    if (!playing) return;
     const timer = window.setInterval(() => {
       setYear(current => current < rangeStart || current >= rangeEnd ? rangeStart : current + 1);
       setHoveredRegionId(null);

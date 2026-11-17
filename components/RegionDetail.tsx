@@ -1,10 +1,9 @@
 "use client";
 
-import { type LivWell, type MetricKey } from "./data";
+import { formatValue, type LivWell, type MetricKey } from "./data";
 import { zColor, zTextColor } from "./colors";
 
 type Props = { data: LivWell; country: string; year: number; metric: MetricKey; selectedRegionId: string | null; hoveredRegionId: string | null; setMetric: (metric: MetricKey) => void };
-const format = (value: number | null | undefined, unit: string) => value == null ? "No data" : `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${unit}`;
 export default function RegionDetail({ data, country, year, metric, selectedRegionId, hoveredRegionId, setMetric }: Props) {
   const id = selectedRegionId ?? hoveredRegionId;
   const region = data.regions.find(item => item.properties.region_id === id);
@@ -19,7 +18,7 @@ export default function RegionDetail({ data, country, year, metric, selectedRegi
   const first = surveys[0] ?? data.years[0];
   const last = surveys.at(-1) ?? first;
   const x = (value: number) => 35 + (value - first) / Math.max(1, last - first) * 330;
-  const y = (value: number) => 85 - value / 3 * 55;
+  const y = (value: number) => 85 - Math.max(-3, Math.min(3, value)) / 3 * 55;
   const record = data.recordFor(id, year);
   return <div className="px-4 pb-4">
     <p className="text-sm font-medium">{region.properties.region_name} <span className="text-slate-400">· {data.countryFor(code)?.name ?? country}</span></p>
@@ -45,7 +44,7 @@ export default function RegionDetail({ data, country, year, metric, selectedRegi
         const z = record?.z[indicator.key];
         return <tr key={indicator.key} onClick={() => setMetric(indicator.key)} className={`cursor-pointer border-t border-slate-800 hover:bg-slate-800 ${metric === indicator.key ? "bg-slate-800" : ""}`}>
           <th className="py-2 pr-2 font-normal"><button className="text-left hover:text-sky-300 focus-visible:outline focus-visible:outline-sky-400" onClick={() => setMetric(indicator.key)}>{indicator.label}</button></th>
-          <td className="pr-2">{format(record?.v[indicator.key], indicator.unit)}</td><td className="pr-2">{format(data.baselines[code]?.[year]?.[indicator.key], indicator.unit)}</td>
+          <td className="pr-2">{formatValue(record?.v[indicator.key], indicator.unit)}</td><td className="pr-2">{formatValue(data.baselines[code]?.[year]?.[indicator.key], indicator.unit)}</td>
           <td><span className="inline-block rounded px-1.5 py-1" style={{ color: z == null ? "#f8fafc" : zTextColor(z), background: z == null ? "#1e293b" : `rgb(${zColor(z).join(",")})` }}>{z == null ? "—" : z.toFixed(2)}</span></td>
         </tr>;
       })}</tbody>

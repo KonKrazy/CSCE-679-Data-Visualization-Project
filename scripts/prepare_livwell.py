@@ -103,7 +103,8 @@ def prepare_livwell(source_dir: Path, output_dir: Path) -> None:
     baselines = {}
     for (country, year), means in observations.groupby(["country_code", "year"])[fields].mean().iterrows():
         baselines.setdefault(str(country), {})[int(year)] = means.to_dict()
-    records = [dict(id=row.region_id, y=int(row.year), m=int(row.year) in surveys.get(str(row.country_code), []), v={key: getattr(row, key) for key in fields}, z=scores.iloc[i].to_dict()) for i, row in enumerate(observations.itertuples(index=False)) if row.region_id in set(regions.region_id)]
+    region_ids = set(regions.region_id)
+    records = [dict(id=row.region_id, y=int(row.year), m=int(row.year) in surveys.get(str(row.country_code), []), v={key: getattr(row, key) for key in fields}, z=scores.iloc[i].to_dict()) for i, row in enumerate(observations.itertuples(index=False)) if row.region_id in region_ids]
     payload = rounded(dict(years=list(YEARS), indicators=indicators, countries=countries, baselines=baselines, records=records))
     output_dir.mkdir(parents=True, exist_ok=True)
     write_json(output_dir / "regions.geojson", geometry)

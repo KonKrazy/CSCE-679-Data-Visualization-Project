@@ -19,6 +19,9 @@ export function passesFilters(record: RegionRecord | undefined, filters: Filters
     return z != null && Number.isFinite(z) && z >= low && z <= high;
   });
 }
+export function formatValue(value: number | null | undefined, unit: string): string {
+  return value == null ? "No data" : `${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}${unit === "%" ? "%" : unit ? ` ${unit}` : ""}`;
+}
 type Payload = { years: number[]; indicators: Indicator[]; countries: Country[]; baselines: Record<string, Record<string, Values>>; records: RegionRecord[] };
 
 function indexData(regions: RegionFeature[], payload: Payload) {
@@ -47,7 +50,10 @@ function load() {
   pending ??= Promise.all([
     fetchJson<FeatureCollection<Geometry, RegionProperties>>("regions.geojson"),
     fetchJson<Payload>("values.json"),
-  ]).then(([geometry, payload]) => indexData(geometry.features, payload));
+  ]).then(([geometry, payload]) => indexData(geometry.features, payload)).catch((reason: unknown) => {
+    pending = undefined;
+    throw reason;
+  });
   return pending;
 }
 export function useLivWell() {

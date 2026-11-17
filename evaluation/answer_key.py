@@ -44,6 +44,10 @@ both = [r for r in elec if (z(r, "literacy") or 0) < 0]
 lines.append(f"- **T2b** {len(both)} of {len(elec)} regions behind on electricity are also behind on literacy")
 
 # T3a: did the T1a region's wealth gap close or widen between 2000 and 2014?
+for year in (2000, 2014):
+    row = records.get((t1a["id"], year))
+    if row is None or z(row, "household_wealth") is None:
+        raise SystemExit(f"T3a: missing record or household wealth z for {t1a['id']} in {year}.")
 start, end = (z(records[(t1a["id"], y)], "household_wealth") for y in (2000, 2014))
 trend = "closing (moved toward the baseline)" if abs(end) < abs(start) else "widening (moved away from the baseline)"
 lines.append(f"- **T3a** {trend}: z {start:+.2f} in 2000 → {end:+.2f} in 2014")

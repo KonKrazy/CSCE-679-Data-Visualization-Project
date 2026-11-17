@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import * as d3 from "d3";
-import { passesFilters, type Filters, type LivWell, type MetricKey } from "./data";
+import { formatValue, passesFilters, type Filters, type LivWell, type MetricKey } from "./data";
 import { zColor } from "./colors";
 import { metrics } from "./metrics";
 
@@ -14,14 +14,12 @@ type Props = {
   filters: Filters; setFilters: Dispatch<SetStateAction<Filters>>;
 };
 const fields = Object.keys(metrics) as MetricKey[];
-const labels: Record<MetricKey, string[]> = {
-  household_wealth: ["Household", "wealth"], health_insurance_coverage: ["Health insurance", "coverage"],
-  drought_month_share_12m: ["Drought month", "share"], health_decision_participation: ["Health decision", "participation"],
-  literacy: ["Literacy"], household_electricity: ["Household", "electricity"],
-  household_high_quality_water: ["High-quality", "household water"],
-  household_high_quality_toilet: ["High-quality", "household toilet"],
-  women_currently_working: ["Women currently", "working"], modern_contraceptive_use: ["Modern", "contraceptive use"],
-};
+function splitLabel(label: string): string[] {
+  const spaces = [...label.matchAll(/ /g)].map(match => match.index!);
+  if (!spaces.length) return [label];
+  const middle = spaces.reduce((best, index) => Math.abs(index - label.length / 2) < Math.abs(best - label.length / 2) ? index : best);
+  return [label.slice(0, middle), label.slice(middle + 1)];
+}
 const top = 32, bottom = 300, height = 380;
 const y = d3.scaleLinear().domain([-3, 3]).range([bottom, top]).clamp(true);
 
@@ -90,12 +88,11 @@ export default function ParallelCoordinates({ data, country, year, metric, setMe
             {index === 0 && [-3, -2, -1, 0, 1, 2, 3].map(tick => <text key={tick} x={x(field)! - 14} y={y(tick) + 4} textAnchor="end" fill="currentColor" className="text-slate-400" fontSize={10}>{tick}</text>)}
             <text x={x(field)} y={321} textAnchor="middle" fill="currentColor" className={`${field === metric ? "text-sky-300 font-semibold" : "text-slate-300"} cursor-pointer`} fontSize={9} role="button" tabIndex={0}
               onClick={() => setMetric(field)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setMetric(field); } }} aria-label={`Show ${metrics[field]} first`}>
-              {labels[field].map((label, line) => <tspan key={label} x={x(field)} dy={line ? 13 : 0}>{label}</tspan>)}
+              {splitLabel(data.indicatorFor(field)?.label ?? metrics[field]).map((label, line) => <tspan key={label} x={x(field)} dy={line ? 13 : 0}>{label}</tspan>)}
             </text>
             {!available && <text x={x(field)} y={353} textAnchor="middle" fill="currentColor" fontSize={10}>no data</text>}
           </g>;
         })}
-        {axes.map(field => <AxisBrush key={field} field={field} x={x(field)!} range={filters[field]} setFilters={setFilters} />)}
         {ordered.map(({ region, record }) => {
           const id = region.properties.region_id;
           const passes = passesFilters(record, filters);
@@ -119,10 +116,12 @@ export default function ParallelCoordinates({ data, country, year, metric, setMe
             {highlighted && end && <text x={x(end.field)! + 7} y={y(end.z!) - 8} fontSize={11} fill={color} textAnchor="end" pointerEvents="none">{region.properties.region_name}</text>}
           </g>;
         })}
+        {/* Brushes last: lines and dots sit on the axes and would otherwise swallow the drag. */}
+        {axes.map(field => <AxisBrush key={field} field={field} x={x(field)!} range={filters[field]} setFilters={setFilters} />)}
       </svg>
       {tooltip && tooltipRecord && passesFilters(tooltipRecord, filters) && <div role="tooltip" className="pointer-events-none absolute rounded border border-slate-600 bg-slate-900 p-2 text-xs text-slate-200" style={{ left: Math.max(8, Math.min(tooltip.x + 12, width - 240)), top: Math.max(0, tooltip.y - 65) }}>
         <p>{tooltipIndicator?.label}</p>
-        <p>{tooltipRecord.v[tooltip.field]?.toLocaleString(undefined, { maximumFractionDigits: 2 }) ?? "No data"} {tooltipIndicator?.unit} · z: {tooltipRecord.z[tooltip.field]?.toFixed(2)}</p>
+        <p>{formatValue(tooltipRecord.v[tooltip.field], tooltipIndicator?.unit ?? "")} · z: {tooltipRecord.z[tooltip.field]?.toFixed(2)}</p>
       </div>}
     </div>
     <p className="px-4 py-3 text-xs text-slate-400">Each line is one region. Above the dashed line = better off than the national baseline. Drag on an axis to filter.</p>
