@@ -12,11 +12,3 @@ export const metrics = {
 } as const;
 
 export type Metric = keyof typeof metrics;
-export type Delta = `${Metric}_delta`;
-export type Region = {
-  region_id: string;
-  region_name: string;
-  country_code: string;
-  country_name: string;
-  year: number;
-} & Partial<Record<Metric | Delta, number | null>>;

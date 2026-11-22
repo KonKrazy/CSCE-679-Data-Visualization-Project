@@ -1,46 +1,85 @@
 # Intra-Country Disparity Divergence Tool
 
-A Next.js prototype for exploring sub-national development gaps. It uses Deck.gl for the map, D3 for parallel coordinates, and Tailwind CSS with custom responsive styles.
+CSCE 679 Data Visualization final project · Kevin Nguyen, Brady Nguyen
 
-## Run the dashboard
+National averages hide the regions that fall furthest behind. This tool shows how far each
+sub-national region diverges from its own country's baseline, across ten indicators of women's
+living conditions from the LivWell database (52 countries, 477 harmonized regions, 1990–2019).
+
+## Run it
+
+Requires Node.js 18+.
 
 ```bash
 npm install
-npm run dev
+npm run build
+npm run start        # http://localhost:3000
 ```
 
-Open `http://localhost:3000`. The dashboard does not need a map token or external data service.
+`npm run dev` also works for development. The processed data is committed in `public/data/`,
+so the dashboard runs without downloading the raw dataset, a map token or any server.
 
-## Download the Kaggle dataset
+## What it does
 
-Download the [Well-being of Women in 52 Countries dataset](https://www.kaggle.com/datasets/konradb/wellbeing-of-women-in-52-countries) from Kaggle. Sign in if prompted, choose **Download**, and extract the archive to:
+| Question | View | Interaction |
+|---|---|---|
+| Where are the gaps? | Delta-first map: regions coloured by z-score against the national baseline | Hover for value, baseline and survey/interpolated status; click to pin; click another country to switch |
+| Who is furthest behind? | Diverging ranked bar chart, most-behind first | Hover/click linked to every view |
+| What else differs? | Parallel coordinates: one line per region, all ten indicators on a shared z-score axis | Click an axis label to make it the active metric; drag on any axis to filter all views |
+| Is the gap closing? | Region detail: z-score trajectory over time plus all ten indicators | Year slider, Play, survey-year ticks |
+
+Filters appear as removable chips; "Behind on {metric}" keeps only regions below the baseline.
+
+**Z-score.** For each country, year and indicator: z = (region value − mean of the country's
+regions) / population SD of those regions. The baseline is the unweighted regional mean.
+Drought is negated so that positive always means better off. Regions are null when a value is
+missing, or when a country has fewer than two regions or no variation that year.
+
+**Survey vs. interpolated years.** LivWell provides linearly interpolated values between each
+country's DHS survey years; the tool labels which years are measured.
+
+## Rebuild the data (optional)
+
+Download `livwell_lin_interpolated.csv`, `livwell.csv`, `indicators.csv` and
+`harmonized_boundaries.gpkg` from [Zenodo record 7277104](https://zenodo.org/records/7277104)
+into `LivWell/` (gitignored), then run with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv run python scripts/prepare_livwell.py     # writes public/data/regions.geojson + values.json
+uv run python scripts/validate_payload.py    # recomputes 200 random z-scores independently
+uv run pytest -q                             # unit tests for the z-score math
+```
+
+Burundi's four regions have no boundaries in the source GeoPackage and are omitted.
+
+## Evaluation
+
+See [`evaluation/README.md`](evaluation/README.md): a task-based user study kit (protocol, tasks,
+SUS, answer key generated from the data, empty result templates and an analysis script) and a
+reproducible interaction-latency benchmark (`npm run measure`).
+
+## Project structure
 
 ```text
-data/source/wellbeing-of-women-in-52-countries/
+app/                      Next.js 15 entry (layout, page, global styles)
+components/
+  Dashboard.tsx           Shared state: country, year, metric, hover, selection, filters
+  Map.tsx                 deck.gl GeoJsonLayer choropleth + tooltip + legend
+  RankedBars.tsx          Diverging ranked bars
+  ParallelCoordinates.tsx D3 parallel coordinates with axis brushing
+  RegionDetail.tsx        Trajectory chart and indicator table
+  data.ts                 Payload loading, lookups, passesFilters()
+  colors.ts               Shared diverging colour scale (map, bars, chart, legend)
+  metrics.ts              Indicator keys and labels
+scripts/                  Python data pipeline and validation
+tests/                    pytest unit tests
+evaluation/               User study kit and latency benchmark
+public/data/              Generated payload (committed)
 ```
 
-Keep the downloaded source files local. The dashboard does not currently import the Kaggle files automatically; it loads the precomputed GeoJSON at `public/data/mock-regions.geojson`.
+## Data and licence
 
-## Prototype data and workflow
-
-The GeoJSON contains 18 real, harmonized Cambodian sub-national boundaries adapted from LivWell, repeated for each year from 1990 through 2019. Indicator values are synthetic and are included only to prototype the visualizations. Deck.gl colors regions by `disparity_delta` (red for negative, gray at zero, blue for positive). D3 draws one line per region across disparity, household wealth, healthcare access, climate stress, and women's autonomy. A shared hover state links regions on the map to lines in the chart in both directions, and the year slider updates both views.
-
-Boundary geometry and harmonized region names were adapted from LivWell's `harmonized_boundaries.gpkg` dataset under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The geometries were simplified for this prototype. The synthetic indicators are not measured outcomes and should not be interpreted as findings about Cambodia.
-
-## Implemented core functionality
-
-- Precomputed GeoJSON with 18 regions and annual records for 1990-2019.
-- Delta-first map, tooltip, and map-to-chart cross-highlighting.
-- Five-axis D3 parallel coordinates plot with chart-to-map hover linking.
-- Global year slider that updates the map and chart together.
-- Responsive dark dashboard layout.
-
-## Remaining work
-
-- Process and validate appropriate source indicators before replacing synthetic values.
-- Add country and indicator selection, data provenance, and accessible non-hover selection.
-- Validate visual behavior across browsers and deploy a reviewed build to Vercel.
-
-## GeoJSON properties
-
-Each feature includes `region_name`, `region_id`, `country_name`, `year`, `disparity_delta`, `household_wealth`, `healthcare_access`, `climate_stress`, and `womens_autonomy`. Synthetic indicator values use a 0-100 scale except `disparity_delta`, which ranges from -5 to +5.
+LivWell: Belmin, C., Hoffmann, R., Elkasabi, M., and Pichler, P.-P. (2022). "LivWell: a
+sub-national Dataset on the Living Conditions of Women and their Well-being for 52 Countries."
+*Scientific Data* 9, 719. https://doi.org/10.1038/s41597-022-01824-2 Data under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/);
+boundaries were simplified for web display.

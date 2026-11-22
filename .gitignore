@@ -7,3 +7,6 @@ out/
 .env*.local
 data/source/
 LivWell/
+__pycache__/
+.pytest_cache/
+.venv/
